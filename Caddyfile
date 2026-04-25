@@ -1,0 +1,54 @@
+# AlphaAi Accounting - Caddy Reverse Proxy Configuration
+#
+# This file configures Caddy as a reverse proxy for the Next.js app.
+# It is primarily used on cloud VPS deployments behind a Caddy gateway.
+#
+# LOCAL DEVELOPMENT:
+#   You do NOT need Caddy for local development.
+#   Just run: bun run dev  (starts on http://localhost:3000)
+#
+# VPS DEPLOYMENT:
+#   1. Install Caddy: sudo apt install -y caddy
+#   2. Copy this file to /etc/caddy/Caddyfile (or your preferred location)
+#   3. Update the domain name below
+#   4. Run: sudo caddy reload --config /etc/caddy/Caddyfile
+#
+# === DEVELOPMENT CONFIG (port-based gateway) ===
+
+:80 {
+        # XTransformPort query parameter support for sandbox environments
+        @transform_port_query {
+                query XTransformPort=*
+        }
+
+        handle @transform_port_query {
+                reverse_proxy localhost:{query.XTransformPort} {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
+
+        handle {
+                reverse_proxy localhost:3000 {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
+}
+
+# === PRODUCTION CONFIG (domain-based, HTTPS) ===
+# Uncomment and configure the block below for production VPS deployment.
+# Caddy automatically handles HTTPS certificates via Let's Encrypt.
+#
+# yourdomain.com {
+#     reverse_proxy localhost:3000 {
+#         header_up Host {host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#         header_up X-Real-IP {remote_host}
+#     }
+# }
