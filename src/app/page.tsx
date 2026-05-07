@@ -180,22 +180,10 @@ export default function Home() {
     navigateToView('contacts');
   }, [navigateToView]);
 
-  if (!hydrated || isLoading) {
-    return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-[#f8faf9] light-forced">
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative h-12 w-12">
-            <div className="absolute inset-0 rounded-full animate-spin" style={{ background: 'conic-gradient(from 0deg, #0d9488, #2dd4bf, #0d9488)', animationDuration: '1.5s' }} />
-            <div className="absolute inset-1 rounded-full bg-[#f8faf9]" />
-          </div>
-          <p className="text-gray-500 text-sm">{t('loading')}</p>
-        </div>
-      </div>
-    );
-  }
-
   // ─── Email verification screen (?verify=TOKEN) ───
-  if (verifyToken && !user) {
+  // IMPORTANT: Check verifyToken BEFORE isLoading to avoid the auth spinner
+  // blocking the verification UI. The verify screen has its own loading state.
+  if (hydrated && verifyToken && !user) {
     return (
       <div className="min-h-[100dvh] flex flex-col bg-[#f8faf9] light-forced login-mesh">
         <div className="login-shape-3 absolute top-1/3 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gradient-to-br from-[#0d9488]/[0.04] to-[#7c9a82]/[0.03] rounded-full blur-3xl pointer-events-none" />
@@ -230,6 +218,20 @@ export default function Home() {
             © {new Date().getFullYear()} AlphaFlow {language === 'da' ? 'Bogføringsapp' : 'Accounting'}
           </p>
         </footer>
+      </div>
+    );
+  }
+
+  if (!hydrated || isLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center bg-[#f8faf9] light-forced">
+        <div className="flex flex-col items-center gap-4">
+          <div className="relative h-12 w-12">
+            <div className="absolute inset-0 rounded-full animate-spin" style={{ background: 'conic-gradient(from 0deg, #0d9488, #2dd4bf, #0d9488)', animationDuration: '1.5s' }} />
+            <div className="absolute inset-1 rounded-full bg-[#f8faf9]" />
+          </div>
+          <p className="text-gray-500 text-sm">{t('loading')}</p>
+        </div>
       </div>
     );
   }
