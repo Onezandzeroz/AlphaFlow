@@ -148,14 +148,58 @@ export function invitationEmailHtml(
   language: Language,
   companyName: string,
   role: string,
-  acceptUrl: string
+  acceptUrl: string,
+  password?: string
 ): string {
-  const heading =
-    language === 'da' ? 'Du er inviteret til et team' : 'You are invited to a team';
   const roleLabel =
     language === 'da'
       ? { OWNER: 'Ejer', ADMIN: 'Administrator', ACCOUNTANT: 'Bogholder', VIEWER: 'Læser', AUDITOR: 'Revisor' }[role] || role
       : role;
+
+  // --- New user: email includes a generated password ---
+  if (password) {
+    const heading =
+      language === 'da' ? 'Du er inviteret til et team' : 'You are invited to a team';
+    const body =
+      language === 'da'
+        ? `Du er blevet inviteret af <strong>${companyName}</strong> til at deltage som <strong>${roleLabel}</strong>.<br/><br/>
+           En konto er blevet oprettet til dig. Brug det nedenstående kodeord til at logge ind:`
+        : `You have been invited by <strong>${companyName}</strong> to join as <strong>${roleLabel}</strong>.<br/><br/>
+           An account has been created for you. Use the password below to log in:`;
+
+    const passwordBlock =
+      language === 'da'
+        ? `<p style="margin:0; font-size:13px; color:${TEXT_MUTED}; line-height:1.5; margin-bottom:4px;"><strong>Dit kodeord:</strong></p>
+           <p style="margin:0 0 16px; font-family:'Courier New',monospace; font-size:20px; font-weight:700; letter-spacing:2px; color:${PRIMARY_DARK}; background:#f0fdfa; padding:12px 20px; border-radius:8px; border:1px solid #ccfbf1; text-align:center;">${password}</p>`
+        : `<p style="margin:0; font-size:13px; color:${TEXT_MUTED}; line-height:1.5; margin-bottom:4px;"><strong>Your password:</strong></p>
+           <p style="margin:0 0 16px; font-family:'Courier New',monospace; font-size:20px; font-weight:700; letter-spacing:2px; color:${PRIMARY_DARK}; background:#f0fdfa; padding:12px 20px; border-radius:8px; border:1px solid #ccfbf1; text-align:center;">${password}</p>`;
+
+    const securityNote =
+      language === 'da'
+        ? `<p style="margin:0; font-size:12px; color:${TEXT_MUTED}; line-height:1.5; background:#fffbeb; padding:10px 14px; border-radius:6px; border:1px solid #fde68a;">&#9888;&#65039; <strong>Vigtigt:</strong> Skift dit kodeord straks efter første login under Indstillinger.</p>`
+        : `<p style="margin:0; font-size:12px; color:${TEXT_MUTED}; line-height:1.5; background:#fffbeb; padding:10px 14px; border-radius:6px; border:1px solid #fde68a;">&#9888;&#65039; <strong>Important:</strong> Change your password immediately after first login in Settings.</p>`;
+
+    const buttonText =
+      language === 'da' ? 'Log ind nu' : 'Log in now';
+    const fallback =
+      language === 'da'
+        ? `Hvis knappen ikke virker, gå til <a href="${acceptUrl}" style="color:${PRIMARY}; word-break:break-all;">${acceptUrl}</a>`
+        : `If the button doesn't work, go to <a href="${acceptUrl}" style="color:${PRIMARY}; word-break:break-all;">${acceptUrl}</a>`;
+
+    const content = `
+      <h2 style="margin:0 0 16px; color:${TEXT_DARK}; font-size:20px; font-weight:600;">${heading}</h2>
+      <p style="margin:0 0 12px; color:${TEXT_DARK}; font-size:15px; line-height:1.6;">${body}</p>
+      ${passwordBlock}
+      ${buttonHtml(acceptUrl, buttonText)}
+      <p style="margin:24px 0 12px; font-size:13px; color:${TEXT_MUTED}; line-height:1.5;">${fallback}</p>
+      <div style="margin-top:16px;">${securityNote}</div>
+    `;
+    return wrapperHtml(content, language);
+  }
+
+  // --- Existing user: just an invite link ---
+  const heading =
+    language === 'da' ? 'Du er inviteret til et team' : 'You are invited to a team';
   const body =
     language === 'da'
       ? `Du er blevet inviteret til at deltage i <strong>${companyName}</strong> som <strong>${roleLabel}</strong>.<br/><br/>

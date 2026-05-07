@@ -3,9 +3,24 @@ import { db } from '@/lib/db';
 import { getAuthContext } from '@/lib/session';
 import { requirePermission, Permission, blockOversightMutation, requireNotDemoCompany } from '@/lib/rbac';
 import { sendInvitationEmail } from '@/lib/email-service';
+import { hashPassword } from '@/lib/password';
 import { logger } from '@/lib/logger';
 import crypto from 'crypto';
 import { auditCreate, requestMetadata } from '@/lib/audit';
+
+/** Generate a readable 12-char password: mix of upper, lower, digits */
+function generateInvitePassword(): string {
+  const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';   // no ambiguous I/L/O
+  const lower = 'abcdefghjkmnpqrstuvwxyz';   // no ambiguous i/l/o
+  const digits = '23456789';                  // no ambiguous 0/1
+  const all = upper + lower + digits;
+  const bytes = crypto.randomBytes(12);
+  let pw = '';
+  for (let i = 0; i < 12; i++) {
+    pw += all[bytes[i]! % all.length];
+  }
+  return pw;
+}
 
 // GET /api/companies/[id]/invitations - List invitations
 export async function GET(
@@ -83,7 +98,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid role. Can only invite as ADMIN, ACCOUNTANT, VIEWER, or AUDITOR.' }, { status: 400 });
     }
 
-    // Check if user is already a member
+    // Check if user already exists
     const existingUser = await db.user.findUnique({ where: { email: normalizedEmail } });
     if (existingUser) {
       const existingMember = await db.userCompany.findUnique({
@@ -92,6 +107,74 @@ export async function POST(
       if (existingMember) {
         return NextResponse.json({ error: 'User is already a member of this company' }, { status: 400 });
       }
+    }
+
+    // If user does NOT exist, create an account with a generated password
+    let invitePassword: string | undefined;
+    if (!existingUser) {
+      invitePassword = generateInvitePassword();
+      const hashedPw = await hashPassword(invitePassword);
+
+      // Ensure unique company name for the user's own company
+      const userCompanyName = `${normalizedEmail.split('@')[0]} (privat)`;
+      const existingCompany = await db.company.findFirst({
+        where: { name: userCompanyName },
+      });
+      if (existingCompany) {
+        return NextResponse.json(
+          { error: `Cannot create account — a company named "${userCompanyName}" already exists.` },
+          { status: 409 }
+        );
+      }
+
+      // Create user
+      await db.user.create({
+        data: {
+          email: normalizedEmail,
+          password: hashedPw,
+          emailVerified: true, // Invited users are pre-verified (they received the email)
+          emailVerifiedAt: new Date(),
+        },
+      });
+
+      // Create a private company for the user (required by schema)
+      await db.company.create({
+        data: {
+          name: userCompanyName,
+          email: normalizedEmail,
+          cvrNumber: '',
+          address: '',
+          phone: '',
+          bankName: '',
+          bankAccount: '',
+          bankRegistration: '',
+          invoicePrefix: 'INV',
+          currentYear: new Date().getFullYear(),
+        },
+      });
+
+      // Link user to their private company as OWNER
+      const newCompany = await db.company.findUnique({
+        where: { name: userCompanyName },
+        select: { id: true },
+      });
+      if (newCompany) {
+        const newUser = await db.user.findUnique({
+          where: { email: normalizedEmail },
+          select: { id: true },
+        });
+        if (newUser) {
+          await db.userCompany.create({
+            data: {
+              userId: newUser.id,
+              companyId: newCompany.id,
+              role: 'OWNER',
+            },
+          });
+        }
+      }
+
+      logger.info(`[INVITE] Created new user account for ${normalizedEmail}`);
     }
 
     // Check for existing pending invitation
@@ -126,7 +209,8 @@ export async function POST(
         inviteRole,
         invitation.token,
         'da',
-        companyId
+        companyId,
+        invitePassword
       );
       if (!emailResult.success) {
         logger.warn(`Invitation email failed for ${normalizedEmail}, logId=${emailResult.logId}`);

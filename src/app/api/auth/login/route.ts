@@ -107,6 +107,67 @@ export async function POST(request: NextRequest) {
     });
     await auditAuth(user.id, 'LOGIN', requestMetadata(request), sessionForAudit?.activeCompanyId ?? null);
 
+    // ─── Auto-accept pending invitations ────────────────────────────
+    // When an invited user logs in for the first time, auto-accept any
+    // pending invitations and switch their active company to the invited tenant.
+    const pendingInvitations = await db.invitation.findMany({
+      where: { email: user.email, status: 'PENDING' },
+      include: { company: { select: { id: true, name: true } } },
+    });
+
+    let acceptedInvitation: { companyId: string; companyName: string; role: string } | null = null;
+    for (const inv of pendingInvitations) {
+      if (inv.expiresAt < new Date()) {
+        await db.invitation.update({ where: { id: inv.id }, data: { status: 'EXPIRED' } });
+        continue;
+      }
+
+      const alreadyMember = await db.userCompany.findUnique({
+        where: { userId_companyId: { userId: user.id, companyId: inv.companyId } },
+      });
+      if (alreadyMember) {
+        await db.invitation.update({
+          where: { id: inv.id },
+          data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedBy: user.id },
+        });
+        continue;
+      }
+
+      // Create membership in the invited tenant
+      await db.userCompany.create({
+        data: {
+          userId: user.id,
+          companyId: inv.companyId,
+          role: inv.role,
+          invitedBy: inv.invitedBy,
+        },
+      });
+      await db.invitation.update({
+        where: { id: inv.id },
+        data: { status: 'ACCEPTED', acceptedAt: new Date(), acceptedBy: user.id },
+      });
+
+      logger.info(`[LOGIN] Auto-accepted invitation for ${user.email} → ${inv.company.name} as ${inv.role}`);
+
+      // Remember the first accepted invitation to switch to it
+      if (!acceptedInvitation) {
+        acceptedInvitation = {
+          companyId: inv.companyId,
+          companyName: inv.company.name,
+          role: inv.role,
+        };
+      }
+    }
+
+    // If we accepted an invitation, switch active company to the invited tenant
+    if (acceptedInvitation) {
+      await db.session.update({
+        where: { token },
+        data: { activeCompanyId: acceptedInvitation.companyId },
+      });
+      logger.info(`[LOGIN] Switched active company for ${user.email} to ${acceptedInvitation.companyName}`);
+    }
+
     // Resolve the active company context for the response
     const session = await db.session.findUnique({
       where: { token },

@@ -186,7 +186,8 @@ export async function sendInvitationEmail(
   role: string,
   token: string,
   language: Language = 'da',
-  companyId?: string
+  companyId?: string,
+  password?: string
 ): Promise<{ success: boolean; logId: string }> {
   const acceptUrl = `${APP_URL}/?invite=${token}`;
   const subject =
@@ -197,10 +198,10 @@ export async function sendInvitationEmail(
   return sendEmail({
     to,
     subject,
-    html: invitationEmailHtml(language, companyName, role, acceptUrl),
+    html: invitationEmailHtml(language, companyName, role, acceptUrl, password),
     template: 'invitation',
     companyId,
-    metadata: { token, language, companyName, role },
+    metadata: { token, language, companyName, role, newUser: !!password },
   });
 }
 
