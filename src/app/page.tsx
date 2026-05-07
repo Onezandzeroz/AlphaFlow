@@ -74,8 +74,11 @@ export default function Home() {
   useEffect(() => {
     if (!hydrated || hasCheckedAuth.current) return;
     hasCheckedAuth.current = true;
-    // Skip auth check when showing verify screen
-    if (verifyToken) return;
+    // Skip auth check when showing verify screen — but clear loading flag
+    if (verifyToken) {
+      useAuthStore.getState().setLoading(false);
+      return;
+    }
     checkAuth();
   }, [hydrated, checkAuth, verifyToken]);
 
