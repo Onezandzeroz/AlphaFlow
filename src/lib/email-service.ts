@@ -138,7 +138,7 @@ export async function sendVerificationEmail(
   language: Language = 'da',
   companyId?: string
 ): Promise<{ success: boolean; logId: string }> {
-  const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
+  const verifyUrl = `${APP_URL}/?verify=${token}`;
   const subject =
     language === 'da'
       ? 'Bekræft din e-mailadresse — AlphaAi Regnskab'
@@ -188,7 +188,7 @@ export async function sendInvitationEmail(
   language: Language = 'da',
   companyId?: string
 ): Promise<{ success: boolean; logId: string }> {
-  const acceptUrl = `${APP_URL}/accept-invitation?token=${token}`;
+  const acceptUrl = `${APP_URL}/?invite=${token}`;
   const subject =
     language === 'da'
       ? `Invitation til ${companyName} — AlphaAi Regnskab`
